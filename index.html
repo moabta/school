@@ -1,774 +1,255 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تحليل بياني للاختبارات التشخيصية</title>
-    <!-- تحميل مكتبات جافاسكريبت المطلوبة -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <style>
-        * {
-            box-sizing: border-box;
-            font-family: Arial, sans-serif;
-        }
-        body {
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align: center;
-            color: #2c3e50;
-            margin-bottom: 30px;
-        }
-        .control-panel {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-bottom: 30px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        }
-        
-        .edit-controls {
-            margin-top: 20px;
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
-        .button {
-            padding: 10px 15px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            font-weight: bold;
-        }
-        .button:hover {
-            background-color: #2980b9;
-        }
-        .button.pdf {
-            background-color: #e74c3c;
-        }
-        .button.pdf:hover {
-            background-color: #c0392b;
-        }
-        .button.qr {
-            background-color: #2ecc71;
-        }
-        .button.qr:hover {
-            background-color: #27ae60;
-        }
-        .input-field {
-            display: none;
-        }
-        .chart-container {
-            margin-top: 30px;
-            position: relative;
-            height: 400px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: center;
-        }
-        th {
-            background-color: #34495e;
-            color: white;
-        }
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        .form-group input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .stats-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-top: 20px;
-        }
-        .stat-card {
-            flex: 1;
-            min-width: 200px;
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #3498db;
-        }
-        .stat-label {
-            color: #7f8c8d;
-            margin-top: 5px;
-        }
-        .qr-container {
-            text-align: center;
-            margin-top: 20px;
-        }
-        #qrImage {
-            max-width: 150px;
-            max-height: 150px;
-        }
-        
-        .editable-cell {
-            cursor: pointer;
-            position: relative;
-        }
-        
-        .editable-cell:hover {
-            background-color: #f0f8ff;
-        }
-        
-        .editable-cell::after {
-            content: "✏️";
-            font-size: 10px;
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            opacity: 0.5;
-        }
-        
-        .add-row-button {
-            width: 100%;
-            padding: 8px;
-            text-align: center;
-            background-color: #e8f4f8;
-            cursor: pointer;
-            border: 1px dashed #3498db;
-            border-radius: 0 0 4px 4px;
-            margin-top: -1px;
-        }
-        
-        .add-row-button:hover {
-            background-color: #d1ecf1;
-        }
-        @media print {
-            .control-panel {
-                display: none;
-            }
-            .edit-controls {
-                display: none;
-            }
-            .add-row-button {
-                display: none;
-            }
-        }
-        .print-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .school-info {
-            text-align: center;
-        }
-    </style>
-</head>
-<body>
-    <div class="container" id="reportContainer">
-        <h1>تحليل بياني للاختبارات التشخيصية</h1>
-        
-        <div class="control-panel">
-            <button class="button" id="uploadDataBtn">تحديث البيانات</button>
-            <input type="file" id="dataFile" class="input-field" accept=".csv,.xlsx,.xls">
-            
-            <button class="button qr" id="uploadQrBtn">إضافة QR</button>
-            <input type="file" id="qrFile" class="input-field" accept="image/*">
-            
-            <button class="button pdf" id="exportPdfBtn">تحويل إلى PDF</button>
-            <button class="button" style="background-color: #9b59b6;" id="printBtn">طباعة</button>
-            <button class="button" style="background-color: #f39c12;" id="downloadCSVBtn">تصدير CSV</button>
-            
-            <div class="form-group">
-                <input type="text" id="classNameInput" placeholder="اسم الفصل (مثل: ٢/٢ بنات)">
-            </div>
-            
-            <div class="form-group">
-                <input type="text" id="subjectNameInput" placeholder="اسم المادة">
-            </div>
+import React, { useState, useRef } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import _ from 'lodash';
 
-            <div class="form-group">
-                <input type="text" id="teacherNameInput" placeholder="اسم المعلم/ة">
-            </div>
+const StudentGradeSystem = () => {
+  const [students, setStudents] = useState([
+    { id: 1, name: 'ايلان احمد عبداللطيف', grade: 10 },
+    { id: 2, name: 'تالا محمد سفر الحربي', grade: 10 },
+    { id: 3, name: 'تولين مجدي عوض الله الحربي', grade: 10 },
+    { id: 4, name: 'جود سعد فيصل المطيري', grade: 10 },
+    { id: 5, name: 'حسينه عبدالرحمن علي القيسي', grade: 10 },
+  ]);
+  const [newStudent, setNewStudent] = useState({ name: '', grade: 10 });
+  const [editingId, setEditingId] = useState(null);
+  const [teacherName, setTeacherName] = useState('نوال التميمي');
+  const [subjectName, setSubjectName] = useState('المهارات الحياتية');
+  const [className, setClassName] = useState('فصل ٢/٢ بنات');
+  const chartRef = useRef(null);
+
+  // Handle adding a new student
+  const handleAddStudent = () => {
+    if (newStudent.name.trim() === '') return;
+    
+    const newId = students.length > 0 ? Math.max(...students.map(s => s.id)) + 1 : 1;
+    setStudents([...students, { ...newStudent, id: newId }]);
+    setNewStudent({ name: '', grade: 10 });
+  };
+
+  // Handle editing a student
+  const handleEditStart = (student) => {
+    setEditingId(student.id);
+    setNewStudent({ name: student.name, grade: student.grade });
+  };
+
+  // Save edited student
+  const handleEditSave = () => {
+    setStudents(students.map(student => 
+      student.id === editingId ? { ...student, name: newStudent.name, grade: newStudent.grade } : student
+    ));
+    setEditingId(null);
+    setNewStudent({ name: '', grade: 10 });
+  };
+
+  // Delete a student
+  const handleDelete = (id) => {
+    setStudents(students.filter(student => student.id !== id));
+  };
+
+  // Export the data (simplified for demo)
+  const exportData = () => {
+    alert('في نسخة كاملة من التطبيق، سيتم هنا تحميل ملف PDF يحتوي على بيانات الطلاب والرسم البياني. هذه النسخة تعرض فقط واجهة المستخدم.');
+  };
+
+  // Simple QR code component using SVG
+  const SimpleQRCode = ({ value, size = 100 }) => {
+    return (
+      <div className="bg-white p-2 border border-gray-300">
+        <img 
+          src={`/api/placeholder/${size}/${size}`} 
+          alt="QR Code Placeholder" 
+          className="border"
+        />
+        <div className="text-xs mt-1 text-gray-500 text-center">رمز QR</div>
+      </div>
+    );
+  };
+
+  return (
+    <div dir="rtl" className="p-4 max-w-6xl mx-auto bg-white shadow-lg rounded-lg">
+      <h1 className="text-2xl font-bold text-center mb-6">نظام إدارة درجات الطلاب</h1>
+      
+      {/* Settings Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2">اسم المعلمة:</label>
+          <input
+            type="text"
+            className="w-full p-2 border border-gray-300 rounded"
+            value={teacherName}
+            onChange={(e) => setTeacherName(e.target.value)}
+          />
         </div>
-        
-        <div class="print-header">
-            <div class="qr-container">
-                <img id="qrImage" style="display: none;">
-            </div>
-            <div class="school-info">
-                <div id="reportTitle">تحليل بياني لاختبار تشخيصي</div>
-                <div id="classInfo"></div>
-            </div>
-            <div></div>
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2">اسم المادة:</label>
+          <input
+            type="text"
+            className="w-full p-2 border border-gray-300 rounded"
+            value={subjectName}
+            onChange={(e) => setSubjectName(e.target.value)}
+          />
         </div>
-        
-        <div id="dataTable"></div>
-        <div class="add-row-button" id="addStudentRow">+ إضافة طالب/ة جديد/ة</div>
-        
-        <div class="edit-controls">
-            <button class="button" id="saveChangesBtn">حفظ التغييرات</button>
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2">الفصل:</label>
+          <input
+            type="text"
+            className="w-full p-2 border border-gray-300 rounded"
+            value={className}
+            onChange={(e) => setClassName(e.target.value)}
+          />
         </div>
-        
-        <div class="stats-container">
-            <div class="stat-card">
-                <div class="stat-value" id="avgScore">-</div>
-                <div class="stat-label">متوسط الدرجات</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="highestScore">-</div>
-                <div class="stat-label">أعلى درجة</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="lowestScore">-</div>
-                <div class="stat-label">أدنى درجة</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="totalStudents">-</div>
-                <div class="stat-label">عدد الطلاب</div>
-            </div>
+      </div>
+
+      {/* Add/Edit Student Form */}
+      <div className="bg-gray-100 p-4 rounded-lg mb-6">
+        <h2 className="text-xl font-semibold mb-4">{editingId ? 'تعديل بيانات الطالب' : 'إضافة طالب جديد'}</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-gray-700 mb-2">اسم الطالب:</label>
+            <input
+              type="text"
+              className="w-full p-2 border border-gray-300 rounded"
+              value={newStudent.name}
+              onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 mb-2">الدرجة:</label>
+            <input
+              type="number"
+              min="0"
+              max="10"
+              className="w-full p-2 border border-gray-300 rounded"
+              value={newStudent.grade}
+              onChange={(e) => setNewStudent({...newStudent, grade: parseInt(e.target.value, 10) || 0})}
+            />
+          </div>
+          <div className="flex items-end">
+            {editingId ? (
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleEditSave}
+                  className="bg-green-500 text-white px-4 py-2 rounded ml-2"
+                >
+                  حفظ
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingId(null);
+                    setNewStudent({ name: '', grade: 10 });
+                  }}
+                  className="bg-gray-500 text-white px-4 py-2 rounded"
+                >
+                  إلغاء
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleAddStudent}
+                className="bg-blue-500 text-white px-4 py-2 rounded"
+              >
+                إضافة طالب
+              </button>
+            )}
+          </div>
         </div>
-        
-        <div class="chart-container">
-            <canvas id="gradesChart"></canvas>
+      </div>
+
+      {/* Chart */}
+      <div className="mb-6" ref={chartRef}>
+        <h2 className="text-xl font-semibold mb-4 text-center">
+          تحليل بياني لاختبار تشخيصي لمادة {subjectName}
+          <br />
+          {className}
+        </h2>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart
+            data={students}
+            margin={{
+              top: 20,
+              right: 30,
+              left: 20,
+              bottom: 60,
+            }}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis 
+              dataKey="name" 
+              angle={-45} 
+              textAnchor="end" 
+              height={80} 
+              interval={0}
+              tick={{ fontSize: 10 }}
+            />
+            <YAxis domain={[0, 10]} />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="grade" fill="#2980b9" name="الدرجة" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Students Table */}
+      <div className="mb-6 overflow-x-auto">
+        <h2 className="text-xl font-semibold mb-4">قائمة الطلاب</h2>
+        <table className="min-w-full bg-white border border-gray-300">
+          <thead>
+            <tr>
+              <th className="py-2 px-4 border-b">الرقم</th>
+              <th className="py-2 px-4 border-b">اسم الطالبة</th>
+              <th className="py-2 px-4 border-b">الدرجة</th>
+              <th className="py-2 px-4 border-b">الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {students.map((student, index) => (
+              <tr key={student.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                <td className="py-2 px-4 border-b text-center">{index + 1}</td>
+                <td className="py-2 px-4 border-b">{student.name}</td>
+                <td className="py-2 px-4 border-b text-center">{student.grade}</td>
+                <td className="py-2 px-4 border-b text-center">
+                  <button
+                    onClick={() => handleEditStart(student)}
+                    className="bg-yellow-500 text-white px-2 py-1 rounded ml-2"
+                  >
+                    تعديل
+                  </button>
+                  <button
+                    onClick={() => handleDelete(student.id)}
+                    className="bg-red-500 text-white px-2 py-1 rounded"
+                  >
+                    حذف
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Export and QR Code */}
+      <div className="flex flex-col md:flex-row justify-between items-center">
+        <div className="mb-4 md:mb-0">
+          <button
+            onClick={exportData}
+            className="bg-green-600 text-white px-6 py-3 rounded text-lg"
+          >
+            تصدير PDF
+          </button>
+          <p className="text-sm text-gray-500 mt-2">تنزيل تقرير كامل بصيغة PDF</p>
         </div>
+        <div className="text-center">
+          <h3 className="mb-2">رمز QR للتقرير</h3>
+          <SimpleQRCode value={`${subjectName} - ${className}`} />
+        </div>
+      </div>
+      
+      {/* Teacher Info Section */}
+      <div className="mt-6 text-center text-gray-700">
+        <p>معلمة المادة / {teacherName}</p>
+      </div>
     </div>
-
-<script>
-// تعريف متغيرات عامة
-let studentsData = [];
-let chart = null;
-
-// DOM elements
-const uploadDataBtn = document.getElementById('uploadDataBtn');
-const dataFileInput = document.getElementById('dataFile');
-const uploadQrBtn = document.getElementById('uploadQrBtn');
-const qrFileInput = document.getElementById('qrFile');
-const exportPdfBtn = document.getElementById('exportPdfBtn');
-const printBtn = document.getElementById('printBtn');
-const downloadCSVBtn = document.getElementById('downloadCSVBtn');
-const qrImage = document.getElementById('qrImage');
-const classNameInput = document.getElementById('classNameInput');
-const subjectNameInput = document.getElementById('subjectNameInput');
-const teacherNameInput = document.getElementById('teacherNameInput');
-const classInfo = document.getElementById('classInfo');
-const reportTitle = document.getElementById('reportTitle');
-const addStudentRow = document.getElementById('addStudentRow');
-const saveChangesBtn = document.getElementById('saveChangesBtn');
-
-// تعريف وظيفة حذف الطالب عالمياً
-window.deleteStudent = function(index) {
-    if (confirm('هل أنت متأكد من حذف هذا الطالب/ة؟')) {
-        studentsData.splice(index, 1);
-        displayData();
-        updateStats();
-        createChart();
-    }
+  );
 };
 
-// Event listeners
-uploadDataBtn.addEventListener('click', () => dataFileInput.click());
-dataFileInput.addEventListener('change', handleDataUpload);
-uploadQrBtn.addEventListener('click', () => qrFileInput.click());
-qrFileInput.addEventListener('change', handleQrUpload);
-exportPdfBtn.addEventListener('click', exportToPdf);
-printBtn.addEventListener('click', () => window.print());
-downloadCSVBtn.addEventListener('click', downloadCSV);
-addStudentRow.addEventListener('click', addNewStudent);
-saveChangesBtn.addEventListener('click', saveAndUpdateData);
-
-classNameInput.addEventListener('input', updateReportInfo);
-subjectNameInput.addEventListener('input', updateReportInfo);
-teacherNameInput.addEventListener('input', updateReportInfo);
-
-// Set default values for class, subject and teacher
-classNameInput.value = '٢/٢ بنات';
-subjectNameInput.value = 'المهارات الحياتية';
-teacherNameInput.value = 'نوال التميمي';
-updateReportInfo();
-
-// Function to update report info
-function updateReportInfo() {
-    const className = classNameInput.value || '';
-    const subjectName = subjectNameInput.value || '';
-    const teacherName = teacherNameInput.value || '';
-    
-    if (subjectName) {
-        reportTitle.textContent = `تحليل بياني لاختبار تشخيصي لمادة ${subjectName}`;
-    } else {
-        reportTitle.textContent = 'تحليل بياني لاختبار تشخيصي';
-    }
-    
-    let infoText = '';
-    if (className) {
-        infoText += `فصل ${className}`;
-    }
-    
-    if (teacherName) {
-        if (infoText) infoText += ' - ';
-        infoText += `معلم/ة المادة: ${teacherName}`;
-    }
-    
-    classInfo.textContent = infoText;
-}
-
-// Function to handle QR code upload
-function handleQrUpload(event) {
-    const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            qrImage.src = e.target.result;
-            qrImage.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-    }
-}
-
-// Function to handle data file upload
-function handleDataUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const content = e.target.result;
-        processDataFile(content);
-    };
-    reader.readAsText(file);
-}
-
-// Function to process the data file
-function processDataFile(content) {
-    Papa.parse(content, {
-        header: true,
-        skipEmptyLines: true,
-        complete: function(results) {
-            if (results.data && results.data.length > 0) {
-                // Assuming the CSV has columns for student name and grade
-                studentsData = results.data.map(row => {
-                    // Check if we have columns with these Arabic names
-                    const name = row['اسم الطالبة'] || row['اسم الطالب'] || row['الاسم'] || Object.values(row)[0];
-                    const grade = row['الدرجة'] || row['درجة'] || parseFloat(Object.values(row)[1]);
-                    
-                    return {
-                        name: name,
-                        grade: typeof grade === 'number' ? grade : parseFloat(grade)
-                    };
-                });
-                
-                // Filter out rows with invalid data
-                studentsData = studentsData.filter(student => 
-                    student.name && !isNaN(student.grade));
-                
-                displayData();
-                updateStats();
-                createChart();
-            }
-        }
-    });
-}
-
-// Function to display the data in a table
-function displayData() {
-    const tableContainer = document.getElementById('dataTable');
-    
-    if (studentsData.length === 0) {
-        tableContainer.innerHTML = '<p>لا توجد بيانات</p>';
-        return;
-    }
-    
-    let tableHTML = `
-        <table>
-            <thead>
-                <tr>
-                    <th>اسم الطالب/ة</th>
-                    <th>الدرجة</th>
-                    <th>حذف</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-    
-    studentsData.forEach((student, index) => {
-        tableHTML += `
-            <tr data-index="${index}">
-                <td class="editable-cell" data-field="name" data-index="${index}">${student.name}</td>
-                <td class="editable-cell" data-field="grade" data-index="${index}">${student.grade}</td>
-                <td><button class="button" style="background-color: #e74c3c; padding: 5px 10px;" onclick="window.deleteStudent(${index})">حذف</button></td>
-            </tr>
-        `;
-    });
-    
-    tableHTML += `
-            </tbody>
-        </table>
-    `;
-    
-    tableContainer.innerHTML = tableHTML;
-    
-    // Add event listeners to make cells editable
-    document.querySelectorAll('.editable-cell').forEach(cell => {
-        cell.addEventListener('click', editCell);
-    });
-}
-
-// Function to edit a cell
-function editCell(event) {
-    const cell = event.currentTarget;
-    const field = cell.dataset.field;
-    const index = parseInt(cell.dataset.index);
-    const currentValue = studentsData[index][field];
-    
-    // Create input element
-    const input = document.createElement('input');
-    input.type = field === 'grade' ? 'number' : 'text';
-    input.value = currentValue;
-    input.style.width = '100%';
-    input.style.padding = '5px';
-    input.style.boxSizing = 'border-box';
-    
-    if (field === 'grade') {
-        input.min = 0;
-        input.max = 10;
-        input.step = 0.5;
-    }
-    
-    // Replace cell content with input
-    cell.innerHTML = '';
-    cell.appendChild(input);
-    input.focus();
-    
-    // Handle input blur
-    input.addEventListener('blur', function() {
-        let newValue = this.value.trim();
-        
-        if (field === 'grade') {
-            newValue = parseFloat(newValue);
-            if (isNaN(newValue)) newValue = currentValue;
-            if (newValue < 0) newValue = 0;
-            if (newValue > 10) newValue = 10;
-        }
-        
-        // Update data
-        studentsData[index][field] = newValue;
-        
-        // Restore cell display
-        cell.textContent = newValue;
-        
-        // Add the editable-cell class back
-        cell.classList.add('editable-cell');
-    });
-    
-    // Handle Enter key press
-    input.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            this.blur();
-        }
-    });
-    
-    // Prevent the click event from propagating
-    input.addEventListener('click', function(e) {
-        e.stopPropagation();
-    });
-    
-    // Remove the editable-cell class temporarily
-    cell.classList.remove('editable-cell');
-}
-
-// Function to add a new student
-function addNewStudent() {
-    studentsData.push({
-        name: 'طالب/ة جديد/ة',
-        grade: 10
-    });
-    
-    displayData();
-    
-    // Scroll to the newly added row
-    const tableRows = document.querySelectorAll('tr');
-    if (tableRows.length > 0) {
-        tableRows[tableRows.length - 1].scrollIntoView({ behavior: 'smooth' });
-    }
-}
-
-// Function to save changes and update the chart and stats
-function saveAndUpdateData() {
-    updateStats();
-    createChart();
-    alert('تم حفظ التغييرات بنجاح!');
-}
-
-// Function to update statistics
-function updateStats() {
-    if (studentsData.length === 0) return;
-    
-    const grades = studentsData.map(student => student.grade);
-    const sum = grades.reduce((a, b) => a + b, 0);
-    const avg = sum / grades.length;
-    const max = Math.max(...grades);
-    const min = Math.min(...grades);
-    
-    document.getElementById('avgScore').textContent = avg.toFixed(2);
-    document.getElementById('highestScore').textContent = max;
-    document.getElementById('lowestScore').textContent = min;
-    document.getElementById('totalStudents').textContent = studentsData.length;
-}
-
-// Function to create the chart
-function createChart() {
-    const ctx = document.getElementById('gradesChart').getContext('2d');
-    
-    // Destroy existing chart if it exists
-    if (chart) {
-        chart.destroy();
-    }
-    
-    chart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: studentsData.map(student => student.name),
-            datasets: [{
-                label: 'الدرجات',
-                data: studentsData.map(student => student.grade),
-                backgroundColor: '#2c3e50',
-                borderColor: '#2c3e50',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'توزيع الدرجات',
-                    font: {
-                        size: 18
-                    }
-                },
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'الدرجة'
-                    }
-                },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'الطلاب'
-                    },
-                    ticks: {
-                        autoSkip: false,
-                        maxRotation: 90,
-                        minRotation: 45
-                    }
-                }
-            }
-        }
-    });
-}
-
-// Function to export to PDF
-function exportToPdf() {
-    try {
-        alert("جاري إنشاء ملف PDF، يرجى الانتظار...");
-        
-        // استخدام مكتبة jsPDF بشكل مباشر
-        if (typeof window.jspdf !== 'undefined') {
-            const { jsPDF } = window.jspdf;
-            
-            // إنشاء مستند PDF مع دعم اللغة العربية
-            const doc = new jsPDF({
-                orientation: 'p',
-                unit: 'mm',
-                format: 'a4',
-                putOnlyUsedFonts: true
-            });
-            
-            // إعداد RTL للنص العربي
-            doc.setR2L(true);
-            
-            // الحصول على عناصر البيانات
-            const title = document.getElementById('reportTitle').textContent;
-            const className = document.getElementById('classInfo').textContent;
-            const teacher = teacherNameInput.value;
-            
-            // إضافة نص بسيط بدلاً من محاولة استخدام نص عربي كامل
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(16);
-            doc.text("Student Analysis Report", doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
-            
-            doc.setFontSize(12);
-            doc.text("Class: " + classNameInput.value, doc.internal.pageSize.getWidth() / 2, 30, { align: 'center' });
-            
-            if (teacher) {
-                doc.text("Teacher: " + teacher, doc.internal.pageSize.getWidth() / 2, 40, { align: 'center' });
-            }
-            
-            // إضافة بيانات الطلاب
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(10);
-            
-            // رسم جدول بدلاً من استخدام النص المباشر
-            doc.setR2L(false); // إيقاف RTL للجدول
-            
-            // عناوين الجدول
-            doc.text("Student Name", 150, 60);
-            doc.text("Score", 30, 60);
-            doc.line(20, 63, 190, 63);
-            
-            // بيانات الطلاب
-            let y = 70;
-            studentsData.forEach((student, index) => {
-                // استخدام نظام إحداثيات مختلف للنص العربي
-                doc.text(student.name, 150, y);
-                doc.text(student.grade.toString(), 30, y);
-                y += 10;
-                
-                // إضافة صفحة جديدة إذا كان هناك الكثير من الطلاب
-                if (y > 280 && index < studentsData.length - 1) {
-                    doc.addPage();
-                    y = 20;
-                    
-                    // عناوين الجدول للصفحة الجديدة
-                    doc.text("Student Name", 150, y);
-                    doc.text("Score", 30, y);
-                    doc.line(20, y + 3, 190, y + 3);
-                    y += 10;
-                }
-            });
-            
-            // إضافة الإحصاءات
-            doc.addPage();
-            doc.text("Score Statistics", doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
-            
-            const avgScore = document.getElementById('avgScore').textContent;
-            const highestScore = document.getElementById('highestScore').textContent;
-            const lowestScore = document.getElementById('lowestScore').textContent;
-            const totalStudents = document.getElementById('totalStudents').textContent;
-            
-            doc.text("Average Score: " + avgScore, 150, 40);
-            doc.text("Highest Score: " + highestScore, 150, 50);
-            doc.text("Lowest Score: " + lowestScore, 150, 60);
-            doc.text("Total Students: " + totalStudents, 150, 70);
-            
-            // حفظ الملف
-            doc.save('student_analysis_report.pdf');
-            
-            alert("تم إنشاء ملف PDF بنجاح!");
-        } else {
-            alert("لم يتم تحميل مكتبة jsPDF بشكل صحيح. حاول تحديث الصفحة.");
-        }
-    } catch (error) {
-        console.error("Error generating PDF:", error);
-        alert("حدث خطأ في إنشاء ملف PDF: " + error.message);
-    }
-}
-
-// وظيفة لتنزيل البيانات بتنسيق CSV
-function downloadCSV() {
-    // التأكد من وجود بيانات للتصدير
-    if (studentsData.length === 0) {
-        alert("لا توجد بيانات للتصدير!");
-        return;
-    }
-    
-    // إنشاء محتوى CSV
-    let csvContent = "اسم الطالب/ة,الدرجة\n";
-    
-    studentsData.forEach(student => {
-        csvContent += `${student.name},${student.grade}\n`;
-    });
-    
-    // إنشاء رابط للتنزيل
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    
-    // تكوين الرابط وتفعيله
-    link.setAttribute("href", url);
-    link.setAttribute("download", "بيانات_الطلاب.csv");
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-// Sample data for initial display - 23 students from the document
-const sampleData = [
-    { name: 'ايلان احمد عبداللطيف', grade: 10 },
-    { name: 'تالا محمد سفر الحربي', grade: 10 },
-    { name: 'تولين مجدي عوض الله الحربي', grade: 10 },
-    { name: 'جود سعد فيصل المطيري', grade: 10 },
-    { name: 'حسينه عبدالرحمن علي القيسي', grade: 10 },
-    { name: 'دانا سعد خليف السهلي', grade: 10 },
-    { name: 'رسيل محمد عسيس الزهراني', grade: 10 },
-    { name: 'ريتاج نايف ناشي الصاعدي', grade: 10 },
-    { name: 'ريتال سالم مبروك الحربي', grade: 10 },
-    { name: 'ريما عبدالحميد بركه الحربي', grade: 10 },
-    { name: 'زينب عبدالرحمن علي القيسي', grade: 10 },
-    { name: 'سجى نايف ضيف الله الحربي', grade: 10 },
-    { name: 'سحاب عمر حمود المطرفي', grade: 10 },
-    { name: 'شدن محمد عبيد خليوي الجابري', grade: 10 },
-    { name: 'شوق مشاري عوض المطيري', grade: 10 },
-    { name: 'عتيقة عبدالرحمن علي القيسي', grade: 10 },
-    { name: 'عذوب صالح معزي الجهني', grade: 10 },
-    { name: 'غنى عبيد عوض الرويتعي', grade: 10 },
-    { name: 'كيان فؤاد سعود الحربي', grade: 10 },
-    { name: 'كيان نايف محمد المغذوي', grade: 10 },
-    { name: 'لما محمد عبدالوهاب احمد', grade: 10 },
-    { name: 'كنده محمد', grade: 10 },
-    { name: 'وتين محمد', grade: 10 }
-];
-
-// Initialize with sample data
-studentsData = sampleData;
-displayData();
-updateStats();
-createChart();
-</script>
-</body>
-</html>
+export default StudentGradeSystem;
